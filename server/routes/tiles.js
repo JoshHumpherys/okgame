@@ -1,18 +1,10 @@
 var express = require('express');
-// const { locals } = require("express/lib/application");
+const _ = require("lodash");
 var router = express.Router();
 
 router.get('/', function(req, res, next) {
   res.json({
     tiles: req.app.locals.tiles
-    // tiles: [
-    //   { x: 0, y: 0, player: 0 },
-    //   { x: 2, y: 0, player: 1 },
-    //   { x: 0, y: 3, player: 1 },
-    //   { x: 0, y: 0, player: 0 },
-    //   { x: 1, y: 0, player: 1 },
-    //   { x: 0, y: 4, player: 0 },
-    // ]
   });
 });
 
@@ -20,12 +12,18 @@ router.post('/', function(req, res, next) {
   const { x, y, player } = req.body;
   // TODO: Validate new tile.
   req.app.locals.tiles.push({ x, y, player });
-  res.send(200);
+  res.sendStatus(200);
 });
 
 router.delete('/', function(req, res, next) {
-  req.app.locals.tiles = [];
-  res.send(200);
+  const { x, y } = req.body;
+  if (x !== undefined && y !== undefined) {
+    // TODO: Validate tile being deleted.
+    _.remove(req.app.locals.tiles, value => value.x === x && value.y === y);
+  } else {
+    req.app.locals.tiles = [];
+  }
+  res.sendStatus(200);
 });
 
 module.exports = router;

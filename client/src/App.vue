@@ -1,23 +1,38 @@
 <template>
   <button @click="clearTiles">Start new game</button>
-  <Grid :my-player-id="tiles.length % players.length" :players="players" :tiles="tiles" @tile-added="getTiles"/>
+  <div class="container">
+    <div class="player-stats-column">
+      <PlayerStats v-for="player in sortedPlayers.slice(0, 2)" :key="player.id" :id="player.id" :name="player.name" :color="player.color" :num-tiles-remaining="getNumTilesRemaining(player.id)"></PlayerStats>
+    </div>
+    <Grid :my-player-id="0" :players="players" :tiles="tiles" :num-tiles-remaining-per-player="numTilesRemainingPerPlayer" :max-num-tiles-per-player="maxNumTilesPerPlayer" @tile-clicked="getTiles"/>
+    <div class="player-stats-column">
+      <PlayerStats v-for="player in sortedPlayers.slice(2, 4)" :key="player.id" :id="player.id" :name="player.name" :color="player.color" :num-tiles-remaining="getNumTilesRemaining(player.id)"></PlayerStats>
+    </div>
+  </div>
 </template>
 
 <script>
-import Grid from './components/Grid.vue'
+import Grid from './components/Grid.vue';
+import PlayerStats from './components/PlayerStats.vue';
+import _ from 'lodash';
 
 export default {
   name: 'App',
   components: {
-    Grid
+    Grid,
+    PlayerStats
   },
   data() {
     return {
       players: [],
-      tiles: []
+      tiles: [],
+      maxNumTilesPerPlayer: 15
     };
   },
   methods: {
+    findPlayer(id) {
+      return _.find(this.players, value => value.id === id);
+    },
     async getTiles() {
       const tilesResponse = await fetch('http://localhost:3000/tiles');
       this.tiles = (await tilesResponse.json())['tiles'];
@@ -31,6 +46,18 @@ export default {
         method: 'delete'
       });
       await this.getTiles();
+    },
+    getNumTilesRemaining(playerId) {
+      // This assumes that player 0 starts, and the players continue in order by ID.
+      return Math.max(this.maxNumTilesPerPlayer - Math.floor(this.tiles.length / this.players.length) - (this.tiles.length % this.players.length > playerId ? 1 : 0), 0);
+    }
+  },
+  computed: {
+    sortedPlayers() {
+      return _.sortBy(this.players, value => value.id);
+    },
+    numTilesRemainingPerPlayer() {
+      return this.players.map(player => this.getNumTilesRemaining(player.id));
     }
   },
   async created() {
@@ -50,6 +77,24 @@ export default {
   text-align: center;
   color: #2c3e50;
   margin-top: 60px;
+}
+.container {
+  display: flex;
+  /*flex-direction: row;*/
+}
+.container > :not(.grid) {
+  /*flex: 1;*/
+}
+.container > .grid {
+  /*flex: 2;*/
+  flex: 1;
+}
+.player-stats-column {
+  /*display: flex;*/
+  /*flex-direction: column;*/
+}
+.player-stats-column > * {
+  /*flex: 1;*/
 }
 table {
   margin: 60px auto 0 auto;

@@ -29,31 +29,28 @@ app.use('/tiles', tilesRouter);
 
 app.locals = {
   ...app.locals,
-  tiles: [
-    // { x: 0, y: 0, player: 0 },
-    // { x: 2, y: 0, player: 1 },
-    // { x: 0, y: 3, player: 1 },
-    // { x: 0, y: 0, player: 0 },
-    // { x: 1, y: 0, player: 1 },
-    // { x: 0, y: 4, player: 0 },
-  ],
+  tiles: [],
   players: [
-    {
-      id: 0,
-      color: 'blue'
-    },
-    {
-      id: 1,
-      color: 'orange'
-    },
-    {
-      id: 2,
-      color: 'pink'
-    },
-    {
-      id: 3,
-      color: 'green'
-    }
+    // {
+    //   id: 0,
+    //   name: 'Player 1',
+    //   color: 'blue'
+    // },
+    // {
+    //   id: 1,
+    //   name: 'Player 2',
+    //   color: 'orange'
+    // },
+    // {
+    //   id: 2,
+    //   name: 'Player 3',
+    //   color: 'pink'
+    // },
+    // {
+    //   id: 3,
+    //   name: 'Player 4',
+    //   color: 'green'
+    // }
   ],
 }
 
