@@ -1,6 +1,6 @@
-var express = require('express');
+const express = require('express');
 const _ = require("lodash");
-var router = express.Router();
+const router = express.Router();
 
 router.get('/', function(req, res, next) {
   res.json({

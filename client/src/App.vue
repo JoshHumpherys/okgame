@@ -1,6 +1,13 @@
 <template>
-  <button @click="clearTiles">Start new game</button>
-  <div class="container">
+  <div v-if="activeGameId === null">
+    <button @click="createGame">Create game</button>
+    <hr />
+    <div>
+      <input type="text" id="gameIdInput" v-model="gameIdInput" v-on:keyup.enter="joinGame" />
+      <button @click="joinGame" :disabled="!gameIdInput">Join game</button>
+    </div>
+  </div>
+  <div v-if="activeGameId !== null" class="container">
     <div class="player-stats-column">
       <PlayerStats v-for="player in sortedPlayers.slice(0, 2)" :key="player.id" :id="player.id" :name="player.name" :color="player.color" :num-tiles-remaining="getNumTilesRemaining(player.id)"></PlayerStats>
     </div>
@@ -14,6 +21,7 @@
 <script>
 import Grid from './components/Grid.vue';
 import PlayerStats from './components/PlayerStats.vue';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import _ from 'lodash';
 
 export default {
@@ -24,28 +32,69 @@ export default {
   },
   data() {
     return {
+      gameIdInput: null,
+      activeGameId: null,
       players: [],
       tiles: [],
       maxNumTilesPerPlayer: 15
     };
   },
+  mounted() {
+    // console.log(this.paths.authUrl);
+    // console.log(this.paths.functionsUrl);
+    // console.log(this.paths.firestoreUrl);
+
+    // const functions = getFunctions();
+    // const addMessage = httpsCallable(functions, 'helloWorld');
+    // addMessage({ text: 'hi world!!!' })
+    //   .then(result => {
+    //     // Read result of the Cloud Function.
+    //     /** @type {any} */
+    //     console.log(result);
+    //     const { data } = result;
+    //     console.log(data.welcomeMessage);
+    //   });
+  },
   methods: {
+    createGame() {
+      const functions = getFunctions();
+      httpsCallable(functions, 'createGame')()
+        .then(result => {
+          const { data } = result;
+          this.activeGameId = data.gameId;
+        });
+    },
+    joinGame() {
+      const gameId = this.gameIdInput;
+      if (!gameId) {
+        return;
+      }
+      const functions = getFunctions();
+      httpsCallable(functions, 'joinGame')({ gameId })
+        .then(() => {
+          this.activeGameId = gameId;
+          this.gameIdInput = null;
+        });
+    },
     findPlayer(id) {
       return _.find(this.players, value => value.id === id);
     },
     async getTiles() {
-      const tilesResponse = await fetch('http://localhost:3000/tiles');
-      this.tiles = (await tilesResponse.json())['tiles'];
+      console.log('TODO: Get tiles.');
+      // const tilesResponse = await fetch('http://localhost:3000/tiles');
+      // this.tiles = (await tilesResponse.json())['tiles'];
     },
     async getPlayers() {
-      const playersResponse = await fetch('http://localhost:3000/players');
-      this.players = (await playersResponse.json())['players'];
+      console.log('TODO: Get players.');
+      // const playersResponse = await fetch('http://localhost:3000/players');
+      // this.players = (await playersResponse.json())['players'];
     },
     async clearTiles() {
-      await fetch('http://localhost:3000/tiles', {
-        method: 'delete'
-      });
-      await this.getTiles();
+      console.log('TODO: Clear tiles.');
+      // await fetch('http://localhost:3000/tiles', {
+      //   method: 'delete'
+      // });
+      // await this.getTiles();
     },
     getNumTilesRemaining(playerId) {
       // This assumes that player 0 starts, and the players continue in order by ID.
@@ -64,7 +113,13 @@ export default {
     await this.getTiles();
     await this.getPlayers();
 
-    // TODO: Set up web socket to track changes to the board and update the Grid's props
+    // // TODO: Set up web socket to track changes to the board and update the Grid's props
+    // this.socket = new WebSocket('ws://localhost:3000');
+    //
+    // this.socket.addEventListener('open', () => {
+    //   // Causes the server to print "Hello"
+    //   this.socket.send('Hello');
+    // });
   },
 }
 </script>
@@ -105,7 +160,7 @@ button {
   border-radius: 5px;
   padding: 10px;
 }
-button:hover {
+button:hover:not([disabled]) {
   background-color: darkgray;
   cursor: pointer;
 }

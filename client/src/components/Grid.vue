@@ -64,32 +64,34 @@ export default {
       if (this.isPlayerRemoving) {
         this.removedTile = this.findTile(x, y);
 
-        await fetch('http://localhost:3000/tiles', {
-          method: 'delete',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            x,
-            y
-          })
-        });
+        console.log('TODO: Delete tile.');
+        // await fetch('http://localhost:3000/tiles', {
+        //   method: 'delete',
+        //   headers: {
+        //     'Content-Type': 'application/json'
+        //   },
+        //   body: JSON.stringify({
+        //     x,
+        //     y
+        //   })
+        // });
 
         this.$emit('tile-clicked');
       } else if (this.isPlayableTile(x, y)) {
         this.removedTile = null;
 
-        await fetch('http://localhost:3000/tiles', {
-          method: 'post',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            x,
-            y,
-            player: this.myPlayerId // TODO: Don't pass player ID in body
-          })
-        });
+        console.log('TODO: Place tile.');
+        // await fetch('http://localhost:3000/tiles', {
+        //   method: 'post',
+        //   headers: {
+        //     'Content-Type': 'application/json'
+        //   },
+        //   body: JSON.stringify({
+        //     x,
+        //     y,
+        //     player: this.myPlayerId // TODO: Don't pass player ID in body
+        //   })
+        // });
         
         this.playerTurn = (this.playerTurn + 1) % this.players.length;
 
