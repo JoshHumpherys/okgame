@@ -1,59 +1,49 @@
-import * as functions from 'firebase-functions';
+import { https, logger } from 'firebase-functions';
 import { randomBytes } from 'crypto';
+import { firestore, initializeApp } from 'firebase-admin';
 
-const admin = require('firebase-admin');
-admin.initializeApp();
+const app = initializeApp();
+const db = app.firestore();
 
-// const cors = require('cors')({ origin: true });
+const colors = ['orange', 'blue', 'pink', 'green'];
 
-// export const createGame = functions.https.onRequest((request, response) => {
-//   cors(request, response, () => {
-//     console.log(request);
-//     const gameId = randomBytes(8).toString('hex');
-//     functions.logger.info(`Creating game with game ID ${gameId}.`, { structuredData: true });
-//     admin.firestore().collection('games').add({ gameId })
-//       .then(() => {
-//         response.send({ data: { gameId } });
-//       })
-//       .catch(() => {
-//         response.status(500).json({ data: {} });
-//       });
-//   });
-// });
-//
-// export const joinGame = functions.https.onRequest((request, response) => {
-//   cors(request, response, () => {
-//     const { gameId } = request.body;
-//     functions.logger.info(`Joining game with game ID ${gameId}.`, { structuredData: true });
-//     response.status(200).json({ data: {} });
-//   });
-// });
-
-export const createGame = functions.https.onCall((data, context) => {
+export const createGame = https.onCall((data, context) => {
+  const { playerName } = data;
   const gameId = randomBytes(8).toString('hex');
-  functions.logger.info(`Creating game with game ID ${gameId}.`, { structuredData: true });
-  return new Promise((res, rej) => {
-    admin.firestore().collection('games').doc(gameId).set({ gameId, players: ['player1'] })
-      .then(() => {
-        res({ gameId });
-      })
-      .catch(() => {
-        rej({});
-      });
-  });
+  logger.info(`Creating game with game ID ${gameId}.`, { structuredData: true });
+
+  async function impl() {
+    const gameRef = db.collection('games').doc(gameId);
+
+    await gameRef.set({ gameId, players: [{ id: 0, name: playerName, color: colors[0] }] });
+
+    return { gameId };
+  }
+
+  return impl();
 });
 
-export const joinGame = functions.https.onCall((data, context) => {
-    const { gameId } = data;
-    functions.logger.info(`Joining game with game ID ${gameId}.`, { structuredData: true });
-    return new Promise((res, rej) => {
-      const firestore = admin.firestore();
-      firestore.collection('games').doc(gameId).update({ players: firestore.FieldValue.arrayUnion('player2') })
-        .then(() => {
-          res({});
-        })
-        .catch(() => {
-          rej({});
-        });
-  });
+export const joinGame = https.onCall((data, context) => {
+  const { gameId, playerName } = data;
+  logger.info(`Joining game with game ID ${gameId}.`, { structuredData: true });
+
+  async function impl() {
+    const gameRef = db.collection('games').doc(gameId);
+    const game = await gameRef.get();
+    if (!game.exists) {
+      throw new https.HttpsError('not-found', 'Invalid game ID.');
+    }
+
+    const players = game.get('players') as { id: number, name: string }[];
+    const lastPlayer = players[players.length - 1];
+    const newId = lastPlayer.id + 1;
+
+    const newPlayer = { id: newId, name: playerName, color: colors[newId % colors.length] };
+
+    await gameRef.update({ players: firestore.FieldValue.arrayUnion(newPlayer) });
+
+    return { gameId };
+  }
+
+  return impl();
 });

@@ -22,6 +22,7 @@
 import Grid from './components/Grid.vue';
 import PlayerStats from './components/PlayerStats.vue';
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import { doc, getFirestore, onSnapshot } from 'firebase/firestore';
 import _ from 'lodash';
 
 export default {
@@ -34,47 +35,93 @@ export default {
     return {
       gameIdInput: null,
       activeGameId: null,
+      playerName: null,
       players: [],
       tiles: [],
-      maxNumTilesPerPlayer: 15
+      maxNumTilesPerPlayer: 15,
+      unsubscribeFromGame: null,
     };
   },
   mounted() {
-    // console.log(this.paths.authUrl);
-    // console.log(this.paths.functionsUrl);
-    // console.log(this.paths.firestoreUrl);
-
-    // const functions = getFunctions();
-    // const addMessage = httpsCallable(functions, 'helloWorld');
-    // addMessage({ text: 'hi world!!!' })
-    //   .then(result => {
-    //     // Read result of the Cloud Function.
-    //     /** @type {any} */
-    //     console.log(result);
-    //     const { data } = result;
-    //     console.log(data.welcomeMessage);
-    //   });
   },
   methods: {
-    createGame() {
+    async createGame() {
+      if (!this.playerName) {
+        this.promptForName();
+      }
+
+      if (!this.playerName) {
+        alert('Invalid player name.');
+        return;
+      }
+
+      const { playerName } = this;
+
       const functions = getFunctions();
-      httpsCallable(functions, 'createGame')()
-        .then(result => {
-          const { data } = result;
-          this.activeGameId = data.gameId;
-        });
+
+      let result = null;
+      try {
+        result = await httpsCallable(functions, 'createGame')({ playerName })
+      } catch (error) {
+        alert('An unknown error occurred while creating a game.');
+      }
+
+      const { data } = result;
+      const { gameId } = data;
+      this.activeGameId = gameId;
+
+      this.subscribeToGame(gameId);
     },
-    joinGame() {
+    async joinGame() {
       const gameId = this.gameIdInput;
       if (!gameId) {
         return;
       }
+
+      if (!this.playerName) {
+        this.promptForName();
+      }
+
+      if (!this.playerName) {
+        alert('Invalid player name.');
+        return;
+      }
+
+      const { playerName } = this;
+
       const functions = getFunctions();
-      httpsCallable(functions, 'joinGame')({ gameId })
-        .then(() => {
-          this.activeGameId = gameId;
-          this.gameIdInput = null;
-        });
+
+      try {
+        await httpsCallable(functions, 'joinGame')({ gameId, playerName });
+      } catch (error) {
+        const { code } = error;
+        if (code === 'functions/not-found') {
+          alert('Invalid game ID.');
+        } else {
+          alert('An unknown error occurred while joining the game.');
+        }
+        return;
+      }
+
+      this.activeGameId = gameId;
+      this.gameIdInput = null;
+
+      this.subscribeToGame(gameId);
+    },
+    subscribeToGame(gameId) {
+      const db = getFirestore();
+
+      if (this.unsubscribeFromGame) {
+        this.unsubscribeFromGame();
+      }
+      this.unsubscribeFromGame = onSnapshot(doc(db, 'games', gameId), doc => {
+        const game = doc.data();
+        console.log(game);
+        this.players = game.players;
+      });
+    },
+    promptForName() {
+      this.playerName = prompt('What is your name?');
     },
     findPlayer(id) {
       return _.find(this.players, value => value.id === id);
