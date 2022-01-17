@@ -6,36 +6,38 @@
             v-for="j in xIndices"
             :key="j + '_' + i"
             @tile-clicked="onTileClicked(j, i)"
-            :tile-color="findPlayerById(findTile(j, i)?.player)?.color"
-            :hover-color="this.playerTurn === myPlayerId ? myColor : null"
+            :tile-color="findPlayerById(findTile(j, i)?.playerId)?.color"
+            :hover-color="this.players[this.playerTurn]?.id === myPlayerId ? myColor : null"
             :is-playable="isPlayableTile(j, i)"
-            :is-selectable="isPlayableTile(j, i) && this.playerTurn === myPlayerId && !isPlayerRemoving"
-            :is-removable="findPlayerById(findTile(j, i)?.player)?.color === myColor && this.playerTurn === myPlayerId && isPlayerRemoving"></Tile>
+            :is-selectable="isPlayableTile(j, i) && this.players[this.playerTurn]?.id === myPlayerId && !isPlayerRemoving"
+            :is-removable="findPlayerById(findTile(j, i)?.playerId)?.color === myColor && this.players[this.playerTurn]?.id === myPlayerId && isPlayerRemoving"></Tile>
       </tr>
     </table>
   </div>
 </template>
 
 <script>
+import { defineComponent } from 'vue';
 import _ from 'lodash';
 import Tile from './Tile';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
-export default {
+export default defineComponent({
   name: 'Grid',
   components: {
     Tile
   },
   props: {
-    myPlayerId: Number,
+    gameId: String,
+    myPlayerId: String,
     players: Array,
     tiles: Array,
     maxNumTilesPerPlayer: Number,
-    numTilesRemainingPerPlayer: Array
+    numTilesRemainingPerPlayer: Array,
   },
   data() {
     return {
-      playerTurn: 0,
-      removedTile: null
+      removedTile: null,
     };
   },
   methods: {
@@ -80,26 +82,31 @@ export default {
       } else if (this.isPlayableTile(x, y)) {
         this.removedTile = null;
 
-        console.log('TODO: Place tile.');
-        // await fetch('http://localhost:3000/tiles', {
-        //   method: 'post',
-        //   headers: {
-        //     'Content-Type': 'application/json'
-        //   },
-        //   body: JSON.stringify({
-        //     x,
-        //     y,
-        //     player: this.myPlayerId // TODO: Don't pass player ID in body
-        //   })
-        // });
-        
-        this.playerTurn = (this.playerTurn + 1) % this.players.length;
+        const functions = getFunctions();
+
+        try {
+          await httpsCallable(functions, 'addTile')({ gameId: this.gameId, x, y });
+        } catch (error) {
+          const { code } = error;
+          if (code === 'functions/not-found') {
+            alert('Invalid game ID.');
+          } else {
+            alert('An unknown error occurred while placing the tile.');
+          }
+          return;
+        }
 
         this.$emit('tile-clicked');
       }
     },
   },
   computed: {
+    playerTurn() {
+      return (this.tiles.length + (this.removedTile ? 1 : 0)) % this.players.length;
+    },
+    // colorsByPlayerId() {
+    //   return new Map(this.players.map(x => ([x.id, x.color])));
+    // },
     myColor() {
       const myPlayer = _.find(this.players, x => x.id === this.myPlayerId);
       return myPlayer?.color;
@@ -124,7 +131,7 @@ export default {
       return _.range(minYIndex - 1, maxYIndex + 1 + 1);
     }
   }
-}
+});
 </script>
 
 <!-- Add "scoped" attribute to limit CSS to this component only -->

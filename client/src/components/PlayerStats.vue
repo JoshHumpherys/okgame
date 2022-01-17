@@ -14,7 +14,7 @@ export default {
   components: {
   },
   props: {
-    id: Number,
+    id: String,
     name: String,
     color: String,
     numTilesRemaining: Number

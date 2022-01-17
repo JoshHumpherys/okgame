@@ -11,7 +11,7 @@
     <div class="player-stats-column">
       <PlayerStats v-for="player in sortedPlayers.slice(0, 2)" :key="player.id" :id="player.id" :name="player.name" :color="player.color" :num-tiles-remaining="getNumTilesRemaining(player.id)"></PlayerStats>
     </div>
-    <Grid :my-player-id="0" :players="players" :tiles="tiles" :num-tiles-remaining-per-player="numTilesRemainingPerPlayer" :max-num-tiles-per-player="maxNumTilesPerPlayer" @tile-clicked="getTiles"/>
+    <Grid :game-id="activeGameId" :my-player-id="myPlayerId" :players="players" :tiles="tiles" :num-tiles-remaining-per-player="numTilesRemainingPerPlayer" :max-num-tiles-per-player="maxNumTilesPerPlayer" @tile-clicked="getTiles"/>
     <div class="player-stats-column">
       <PlayerStats v-for="player in sortedPlayers.slice(2, 4)" :key="player.id" :id="player.id" :name="player.name" :color="player.color" :num-tiles-remaining="getNumTilesRemaining(player.id)"></PlayerStats>
     </div>
@@ -19,13 +19,15 @@
 </template>
 
 <script>
+import { defineComponent } from 'vue';
 import Grid from './components/Grid.vue';
 import PlayerStats from './components/PlayerStats.vue';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { doc, getFirestore, onSnapshot } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 import _ from 'lodash';
 
-export default {
+export default defineComponent({
   name: 'App',
   components: {
     Grid,
@@ -117,7 +119,14 @@ export default {
       this.unsubscribeFromGame = onSnapshot(doc(db, 'games', gameId), doc => {
         const game = doc.data();
         console.log(game);
-        this.players = game.players;
+        const colors = [
+          'orange',
+          'blue',
+          'pink',
+          'green',
+        ];
+        this.players = game.players.map(x => ({ ...x, color: colors[x.color] }));
+        this.tiles = game.tiles;
       });
     },
     promptForName() {
@@ -149,6 +158,9 @@ export default {
     }
   },
   computed: {
+    myPlayerId() {
+      return getAuth().currentUser.uid;
+    },
     sortedPlayers() {
       return _.sortBy(this.players, value => value.id);
     },
@@ -168,7 +180,7 @@ export default {
     //   this.socket.send('Hello');
     // });
   },
-}
+});
 </script>
 
 <style>
