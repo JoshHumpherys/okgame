@@ -1,13 +1,47 @@
 <template>
-  <div v-if="activeGameId === null">
-    <button @click="createGame">Create game</button>
-    <hr />
-    <div>
-      <input type="text" id="gameIdInput" v-model="gameIdInput" v-on:keyup.enter="joinGame" />
-      <button @click="joinGame" :disabled="!gameIdInput">Join game</button>
-    </div>
+  <div v-if="gameStatus === GameStatus.NONE">
+    <el-button type="primary" @click="() => gameStatus = GameStatus.CREATING_GAME">Create game</el-button>
+    <el-button type="primary" @click="() => gameStatus = GameStatus.JOINING_GAME">Join game</el-button>
   </div>
-  <div v-if="activeGameId !== null" class="container">
+  <div v-else-if="gameStatus === GameStatus.CREATING_GAME">
+    <el-form ref="createGameFormRef" :model="createGameForm" :rules="createGameFormRules" label-width="120px">
+      <el-form-item label="Your name" prop="playerName">
+        <el-input v-model="createGameForm.playerName"></el-input>
+      </el-form-item>
+      <el-form-item label="Players" prop="maxNumPlayers">
+        <el-input-number v-model="createGameForm.maxNumPlayers" :min="2" :max="4" />
+      </el-form-item>
+      <el-form-item label="Invite only" prop="inviteOnly">
+        <el-switch v-model="createGameForm.inviteOnly"></el-switch>
+      </el-form-item>
+      <el-form-item>
+        <el-button type="primary" @click="createGame">Create game</el-button>
+        <el-button @click="() => gameStatus = GameStatus.NONE">Cancel</el-button>
+      </el-form-item>
+    </el-form>
+  </div>
+  <div v-else-if="gameStatus === GameStatus.JOINING_GAME">
+    <el-form ref="joinGameFormRef" :model="joinGameForm" :rules="joinGameFormRules" label-width="120px">
+      <el-form-item label="Your name" prop="playerName">
+        <el-input v-model="joinGameForm.playerName"></el-input>
+      </el-form-item>
+      <el-form-item label="Game ID" prop="gameId">
+        <el-input v-model="joinGameForm.gameId"></el-input>
+      </el-form-item>
+      <el-form-item>
+        <el-button type="primary" @click="joinGame">Join game</el-button>
+        <el-button @click="() => gameStatus = GameStatus.NONE">Cancel</el-button>
+      </el-form-item>
+    </el-form>
+  </div>
+  <div v-else-if="gameStatus === GameStatus.WAITING_FOR_GAME_TO_START">
+    <p>Game ID: {{ activeGameId }}</p>
+    <p>Players:</p>
+    <p v-for="player in players" :key="player.id">{{ player.name }}</p>
+    <el-button v-if="players[0].id === myPlayerId" type="primary" @click="startGame">Start game</el-button>
+    <p v-else>Waiting for {{ players[0].name }} to start the game...</p>
+  </div>
+  <div v-else-if="activeGameId !== null" class="container">
     <div class="player-stats-column">
       <PlayerStats v-for="player in sortedPlayers.slice(0, 2)" :key="player.id" :id="player.id" :name="player.name" :color="player.color" :num-tiles-remaining="getNumTilesRemaining(player.id)"></PlayerStats>
     </div>
@@ -18,14 +52,27 @@
   </div>
 </template>
 
+<script setup>
+import 'element-plus/es/components/message/style/css'
+</script>
+
 <script>
-import { defineComponent } from 'vue';
+import { defineComponent, reactive } from 'vue';
 import Grid from './components/Grid.vue';
 import PlayerStats from './components/PlayerStats.vue';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { doc, getFirestore, onSnapshot } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import _ from 'lodash';
+import { ElMessage } from 'element-plus'
+
+const GameStatus = {
+  NONE: 0,
+  CREATING_GAME: 1,
+  JOINING_GAME: 2,
+  WAITING_FOR_GAME_TO_START: 3,
+  IN_PROGRESS: 4,
+}
 
 export default defineComponent({
   name: 'App',
@@ -35,7 +82,35 @@ export default defineComponent({
   },
   data() {
     return {
-      gameIdInput: null,
+      createGameForm: reactive({
+        playerName: '',
+        maxNumPlayers: 2,
+        inviteOnly: false,
+      }),
+      createGameFormRules: reactive({
+        playerName: {
+          required: true,
+          message: 'Please enter your name',
+          trigger: 'blur',
+        },
+      }),
+      joinGameForm: reactive({
+        playerName: '',
+        gameId: '',
+      }),
+      joinGameFormRules: reactive({
+        playerName: {
+          required: true,
+          message: 'Please enter your name',
+          trigger: 'blur',
+        },
+        gameId: {
+          required: true,
+          message: 'Please enter a valid game ID',
+          trigger: 'blur',
+        },
+      }),
+      gameStatus: GameStatus.NONE,
       activeGameId: null,
       playerName: null,
       players: [],
@@ -48,48 +123,39 @@ export default defineComponent({
   },
   methods: {
     async createGame() {
-      if (!this.playerName) {
-        this.promptForName();
-      }
-
-      if (!this.playerName) {
-        alert('Invalid player name.');
+      if (!await this.$refs['createGameFormRef'].validate()) {
         return;
       }
 
-      const { playerName } = this;
+      const { playerName, maxNumPlayers, inviteOnly } = this.createGameForm;
 
       const functions = getFunctions();
 
       let result = null;
       try {
-        result = await httpsCallable(functions, 'createGame')({ playerName })
+        result = await httpsCallable(functions, 'createGame')({ playerName, maxNumPlayers, inviteOnly })
       } catch (error) {
-        alert('An unknown error occurred while creating a game.');
+        ElMessage({
+          showClose: true,
+          message: 'An unknown error occurred while creating the game.',
+          type: 'error',
+        });
       }
 
       const { data } = result;
       const { gameId } = data;
       this.activeGameId = gameId;
 
+      this.gameStatus = GameStatus.WAITING_FOR_GAME_TO_START;
+
       this.subscribeToGame(gameId);
     },
     async joinGame() {
-      const gameId = this.gameIdInput;
-      if (!gameId) {
+      if (!await this.$refs['joinGameFormRef'].validate()) {
         return;
       }
 
-      if (!this.playerName) {
-        this.promptForName();
-      }
-
-      if (!this.playerName) {
-        alert('Invalid player name.');
-        return;
-      }
-
-      const { playerName } = this;
+      const { playerName, gameId } = this.joinGameForm;
 
       const functions = getFunctions();
 
@@ -98,17 +164,48 @@ export default defineComponent({
       } catch (error) {
         const { code } = error;
         if (code === 'functions/not-found') {
-          alert('Invalid game ID.');
+          ElMessage({
+            showClose: true,
+            message: 'Invalid game ID.',
+            type: 'error',
+          });
         } else {
-          alert('An unknown error occurred while joining the game.');
+          ElMessage({
+            showClose: true,
+            message: 'An unknown error occurred while joining the game.',
+            type: 'error',
+          });
         }
         return;
       }
 
       this.activeGameId = gameId;
-      this.gameIdInput = null;
+
+      this.gameStatus = GameStatus.WAITING_FOR_GAME_TO_START;
 
       this.subscribeToGame(gameId);
+    },
+    async startGame() {
+      const functions = getFunctions();
+
+      try {
+        await httpsCallable(functions, 'startGame')({ gameId: this.activeGameId });
+      } catch (error) {
+        const { code } = error;
+        if (code === 'functions/not-found') {
+          ElMessage({
+            showClose: true,
+            message: 'Invalid game ID.',
+            type: 'error',
+          });
+        } else {
+          ElMessage({
+            showClose: true,
+            message: 'An unknown error occurred while starting the game.',
+            type: 'error',
+          });
+        }
+      }
     },
     subscribeToGame(gameId) {
       const db = getFirestore();
@@ -118,7 +215,6 @@ export default defineComponent({
       }
       this.unsubscribeFromGame = onSnapshot(doc(db, 'games', gameId), doc => {
         const game = doc.data();
-        console.log(game);
         const colors = [
           'orange',
           'blue',
@@ -127,6 +223,10 @@ export default defineComponent({
         ];
         this.players = game.players.map(x => ({ ...x, color: colors[x.color] }));
         this.tiles = game.tiles;
+
+        if (game.started) {
+          this.gameStatus = GameStatus.IN_PROGRESS;
+        }
       });
     },
     promptForName() {
@@ -220,7 +320,7 @@ button {
   padding: 10px;
 }
 button:hover:not([disabled]) {
-  background-color: darkgray;
+  /*background-color: darkgray;*/
   cursor: pointer;
 }
 </style>

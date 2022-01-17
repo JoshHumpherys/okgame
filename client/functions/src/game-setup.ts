@@ -7,7 +7,7 @@ import { Game } from '../../models/game';
 import { Player } from '../../models/player';
 
 export const createGame = https.onCall((data, context) => {
-  const { playerName } = data;
+  const { playerName, maxNumPlayers, inviteOnly } = data;
   const { auth } = context;
   if (!auth) {
     throw new https.HttpsError('unauthenticated', 'User is not authenticated.');
@@ -20,7 +20,14 @@ export const createGame = https.onCall((data, context) => {
     const gameRef = db.collection('games').doc(gameId).withConverter(gameConverter);
 
     const newPlayer: Player = { id: playerId, name: playerName, color: 0 };
-    const newGame: Game = { id: gameId, players: [newPlayer], tiles: [] };
+    const newGame: Game = {
+      id: gameId,
+      maxNumPlayers,
+      inviteOnly,
+      started: false,
+      players: [newPlayer],
+      tiles: [],
+    };
 
     await gameRef.set(newGame);
 
@@ -50,6 +57,30 @@ export const joinGame = https.onCall((data, context) => {
     const newPlayer: Player = { id: playerId, name: playerName, color: game.players.length };
 
     await gameRef.update({ players: firestore.FieldValue.arrayUnion(newPlayer) });
+
+    return { gameId };
+  }
+
+  return impl();
+});
+
+export const startGame = https.onCall((data, context) => {
+  const { gameId } = data;
+  const { auth } = context;
+  if (!auth) {
+    throw new https.HttpsError('unauthenticated', 'User is not authenticated.');
+  }
+  logger.info(`Starting game with game ID ${gameId}.`, { structuredData: true });
+
+  async function impl() {
+    const gameRef = db.collection('games').doc(gameId).withConverter(gameConverter);
+    const gameSnapshot = await gameRef.get();
+    const game = gameSnapshot.data();
+    if (!gameSnapshot.exists || !game) {
+      throw new https.HttpsError('not-found', 'Invalid game ID.');
+    }
+
+    await gameRef.update({ started: true });
 
     return { gameId };
   }
