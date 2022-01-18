@@ -18,6 +18,7 @@ const vueApp = createApp(App);
 
 // TODO: Get these from a config file split by dev/prod.
 const paths = {
+  /*
   auth: {
     url: 'http://localhost:9099',
   },
@@ -29,6 +30,7 @@ const paths = {
     host: 'localhost',
     port: 8081,
   },
+  */
 };
 vueApp.config.globalProperties.paths = paths;
 

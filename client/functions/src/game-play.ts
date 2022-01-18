@@ -13,6 +13,7 @@ export const addTile = https.onCall((data, context) => {
   const { uid: playerId } = auth.token;
   logger.info(`Placing tile for game ID ${gameId}, player ID ${playerId}, x ${x}, and y ${y}.`, { structuredData: true });
 
+  /* eslint-disable require-jsdoc */
   async function impl() {
     const gameRef = db.collection('games').doc(gameId).withConverter(gameConverter);
     const gameSnapshot = await gameRef.get();
@@ -49,6 +50,7 @@ export const removeTile = https.onCall((data, context) => {
   const { uid: playerId } = auth.token;
   logger.info(`Removing tile for game ID ${gameId}, player ID ${playerId}, x ${x}, and y ${y}.`, { structuredData: true });
 
+  /* eslint-disable require-jsdoc */
   async function impl() {
     const gameRef = db.collection('games').doc(gameId).withConverter(gameConverter);
     const gameSnapshot = await gameRef.get();

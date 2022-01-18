@@ -16,6 +16,7 @@ export const createGame = https.onCall((data, context) => {
   const gameId = randomBytes(8).toString('hex');
   logger.info(`Creating game with game ID ${gameId}, player ID ${playerId}, and player name ${playerName}.`, { structuredData: true });
 
+  /* eslint-disable require-jsdoc */
   async function impl() {
     const gameRef = db.collection('games').doc(gameId).withConverter(gameConverter);
 
@@ -47,6 +48,7 @@ export const joinGame = https.onCall((data, context) => {
   const { uid: playerId } = auth.token;
   logger.info(`Joining game with game ID ${gameId}, player ID ${playerId}, and player name ${playerName}.`, { structuredData: true });
 
+  /* eslint-disable require-jsdoc */
   async function impl() {
     const gameRef = db.collection('games').doc(gameId).withConverter(gameConverter);
     const gameSnapshot = await gameRef.get();
@@ -83,6 +85,7 @@ export const startGame = https.onCall((data, context) => {
   const { uid: playerId } = auth.token;
   logger.info(`Starting game with game ID ${gameId}.`, { structuredData: true });
 
+  /* eslint-disable require-jsdoc */
   async function impl() {
     const gameRef = db.collection('games').doc(gameId).withConverter(gameConverter);
     const gameSnapshot = await gameRef.get();

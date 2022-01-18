@@ -1,5 +1,8 @@
 <template>
   <el-container>
+    <el-header>
+      <h1>OK Game</h1>
+    </el-header>
     <el-main v-if="gameStatus === GameStatus.CREATING_GAME">
       <el-row justify="center">
         <el-col :xs="24" :sm="20" :md="16" :lg="12" :xl="8">
