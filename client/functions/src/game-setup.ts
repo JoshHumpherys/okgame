@@ -27,6 +27,7 @@ export const createGame = https.onCall((data, context) => {
       started: false,
       players: [newPlayer],
       tiles: [],
+      numTilesAdded: 0,
     };
 
     await gameRef.set(newGame);

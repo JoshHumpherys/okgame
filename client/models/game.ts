@@ -8,6 +8,7 @@ export class Game {
     readonly inviteOnly: boolean,
     readonly started: boolean,
     readonly players: Player[],
-    readonly tiles: Tile[]) {
+    readonly tiles: Tile[],
+    readonly numTilesAdded: number) {
   }
 }

@@ -1,12 +1,6 @@
 <template>
   <el-container>
-    <el-main v-if="gameStatus === GameStatus.NONE">
-      <el-space spacer="|">
-        <el-button type="primary" @click="() => gameStatus = GameStatus.CREATING_GAME">Create game</el-button>
-        <el-button type="primary" @click="() => gameStatus = GameStatus.JOINING_GAME">Join game</el-button>
-      </el-space>
-    </el-main>
-    <el-main v-else-if="gameStatus === GameStatus.CREATING_GAME">
+    <el-main v-if="gameStatus === GameStatus.CREATING_GAME">
       <el-row justify="center">
         <el-col :xs="24" :sm="20" :md="16" :lg="12" :xl="8">
           <el-form ref="createGameFormRef" :model="createGameForm" :rules="createGameFormRules" label-width="120px">
@@ -55,14 +49,27 @@
       <el-button v-if="players.length > 0 && players[0].id === myPlayerId" type="primary" :disabled="players.length < 2" @click="startGame">Start game</el-button>
       <p v-else-if="players.length > 0">Waiting for {{ players[0].name }} to start the game...</p>
     </el-main>
-    <el-main v-else-if="activeGameId !== null" class="container">
-      <div class="player-stats-column">
-        <PlayerStats v-for="player in sortedPlayers.slice(0, 2)" :key="player.id" :id="player.id" :name="player.name" :color="player.color" :num-tiles-remaining="getNumTilesRemaining(player.id)"></PlayerStats>
-      </div>
-      <Grid :game-id="activeGameId" :my-player-id="myPlayerId" :players="players" :tiles="tiles" :num-tiles-remaining-per-player="numTilesRemainingPerPlayer" :max-num-tiles-per-player="maxNumTilesPerPlayer" @tile-clicked="getTiles"/>
-      <div class="player-stats-column">
-        <PlayerStats v-for="player in sortedPlayers.slice(2, 4)" :key="player.id" :id="player.id" :name="player.name" :color="player.color" :num-tiles-remaining="getNumTilesRemaining(player.id)"></PlayerStats>
-      </div>
+    <el-main v-else>
+      <el-row v-if="gameStatus === GameStatus.NONE || activeGameId && playerWinnerId" justify="center">
+        <el-space spacer="|">
+          <el-button type="primary" @click="() => { reset(); gameStatus = GameStatus.CREATING_GAME; }">Create game</el-button>
+          <el-button type="primary" @click="() => { reset(); gameStatus = GameStatus.JOINING_GAME; }">Join game</el-button>
+        </el-space>
+      </el-row>
+      <el-row v-if="playerWinnerId">
+        <el-col justify="center">
+          <h1 :style="{ 'color': players.find(x => x.id === playerWinnerId).color }">{{ players.find(x => x.id === playerWinnerId).name }} won!</h1>
+        </el-col>
+      </el-row>
+      <el-row v-if="activeGameId">
+        <div class="player-stats-column">
+          <PlayerStats v-for="player in sortedPlayers.slice(0, 2)" :key="player.id" :id="player.id" :name="player.name" :color="player.color" :num-tiles-remaining="getNumTilesRemaining(player.id)"></PlayerStats>
+        </div>
+        <Grid :game-id="activeGameId" :my-player-id="myPlayerId" :players="players" :tiles="tiles" :num-tiles-added="numTilesAdded" :num-tiles-remaining-per-player="numTilesRemainingPerPlayer" :max-num-tiles-per-player="maxNumTilesPerPlayer" :game-over="!!playerWinnerId" style="flex: 1;" />
+        <div class="player-stats-column">
+          <PlayerStats v-for="player in sortedPlayers.slice(2, 4)" :key="player.id" :id="player.id" :name="player.name" :color="player.color" :num-tiles-remaining="getNumTilesRemaining(player.id)"></PlayerStats>
+        </div>
+      </el-row>
     </el-main>
   </el-container>
 </template>
@@ -132,6 +139,8 @@ export default defineComponent({
       playerName: null,
       players: [],
       tiles: [],
+      numTilesAdded: 0,
+      playerWinnerId: null,
       maxNumTilesPerPlayer: 15,
       unsubscribeFromGame: null,
     };
@@ -239,44 +248,107 @@ export default defineComponent({
           'green',
         ];
         this.players = game.players.map(x => ({ ...x, color: colors[x.color] }));
+        const prevNumTiles = this.tiles.length;
         this.tiles = game.tiles;
+        this.numTilesAdded = game.numTilesAdded;
 
         if (game.started) {
           this.gameStatus = GameStatus.IN_PROGRESS;
         }
+
+        if (this.tiles.length > prevNumTiles) {
+          if (this.checkForWin()) {
+            this.playerWinnerId = this.tiles[this.tiles.length - 1].playerId;
+            console.log(`Player ${this.players.find(x => x.id === this.playerWinnerId).name} won the game.`);
+          }
+        }
       });
+    },
+    checkForWin() {
+      // Assumes that the newest tile is the last tile in the list.
+      const newTile = this.tiles[this.tiles.length - 1];
+      const tilesToCheck = this.tiles.filter(x => x.playerId === newTile.playerId);
+      const tilesInSameRow = [];
+      const tilesInSameColumn = [];
+      const tilesInSameNegativeSlopeDiagonal = [];
+      const tilesInSamePositiveSlopeDiagonal = [];
+      for (const tile of tilesToCheck) {
+        if (tile.x === newTile.x && tile.y === newTile.y) {
+          continue;
+        } else if (tile.y === newTile.y) {
+          tilesInSameRow.push(tile);
+        } else if (tile.x === newTile.x) {
+          tilesInSameColumn.push(tile);
+        } else if (tile.x - newTile.x === tile.y - newTile.y) {
+          tilesInSamePositiveSlopeDiagonal.push(tile);
+        } else if (tile.x - newTile.x === newTile.y - tile.y) {
+          tilesInSameNegativeSlopeDiagonal.push(tile);
+        }
+      }
+
+      tilesInSameRow.push(newTile);
+      tilesInSameColumn.push(newTile);
+      tilesInSameNegativeSlopeDiagonal.push(newTile);
+      tilesInSamePositiveSlopeDiagonal.push(newTile);
+
+      tilesInSameRow.sort((a, b) => a.x - b.x);
+      tilesInSameColumn.sort((a, b) => a.y - b.y);
+      tilesInSameNegativeSlopeDiagonal.sort((a, b) => a.x - b.x);
+      tilesInSamePositiveSlopeDiagonal.sort((a, b) => a.x - b.x);
+
+      return this.checkConsecutiveTileCount(newTile, tilesInSameRow, (a, b) => a.x + 1 === b.x) ||
+        this.checkConsecutiveTileCount(newTile, tilesInSameColumn, (a, b) => a.y + 1 === b.y) ||
+        this.checkConsecutiveTileCount(newTile, tilesInSameNegativeSlopeDiagonal, (a, b) => a.x + 1 === b.x && a.y - 1 === b.y) ||
+        this.checkConsecutiveTileCount(newTile, tilesInSamePositiveSlopeDiagonal, (a, b) => a.x + 1 === b.x && a.y + 1 === b.y);
+    },
+    checkConsecutiveTileCount(newTile, tiles, consecutivePredicate) {
+      let consecutiveTileCount = 0;
+      let previousTile = null;
+      let containsNewTile = false;
+      for (const tile of tiles) {
+        if (!previousTile || !consecutivePredicate(previousTile, tile)) {
+          consecutiveTileCount = 1;
+          containsNewTile = tile.x === newTile.x && tile.y === newTile.y;
+        } else {
+          consecutiveTileCount++;
+          containsNewTile |= tile.x === newTile.x && tile.y === newTile.y;
+          if (consecutiveTileCount >= 5 && containsNewTile) {
+            return true;
+          }
+        }
+        previousTile = tile;
+      }
+      return false;
+    },
+    reset() {
+      if (this.unsubscribeFromGame) {
+        this.unsubscribeFromGame();
+      }
+      this.createGameForm.maxNumPlayers = 2;
+      this.createGameForm.inviteOnly = false;
+      this.joinGameForm.gameId = '';
+      this.recentlyCopiedToClipboard = false;
+      this.activeGameId = null;
+      this.players = [];
+      this.tiles = [];
+      this.numTilesAdded = 0;
+      this.playerWinnerId = null;
     },
     copyActiveGameIdToClipboard() {
       navigator.clipboard.writeText(this.activeGameId)
         .then(() => this.recentlyCopiedToClipboard = true)
         .catch(e => console.error(e));
     },
-    promptForName() {
-      this.playerName = prompt('What is your name?');
-    },
-    findPlayer(id) {
-      return _.find(this.players, value => value.id === id);
-    },
-    async getTiles() {
-      console.log('TODO: Get tiles.');
-      // const tilesResponse = await fetch('http://localhost:3000/tiles');
-      // this.tiles = (await tilesResponse.json())['tiles'];
-    },
-    async getPlayers() {
-      console.log('TODO: Get players.');
-      // const playersResponse = await fetch('http://localhost:3000/players');
-      // this.players = (await playersResponse.json())['players'];
-    },
-    async clearTiles() {
-      console.log('TODO: Clear tiles.');
-      // await fetch('http://localhost:3000/tiles', {
-      //   method: 'delete'
-      // });
-      // await this.getTiles();
-    },
     getNumTilesRemaining(playerId) {
       // This assumes that player 0 starts, and the players continue in order by ID.
-      return Math.max(this.maxNumTilesPerPlayer - Math.floor(this.tiles.length / this.players.length) - (this.tiles.length % this.players.length > playerId ? 1 : 0), 0);
+      if (this.tiles.length === this.players.length * this.maxNumTilesPerPlayer) {
+        return 0;
+      } else if (this.tiles.length + 1 === this.players.length * this.maxNumTilesPerPlayer) {
+        return this.players[this.numTilesAdded % this.players.length].id === playerId ? 1 : 0;
+      } else {
+        const playerIndex = this.players.findIndex(x => x.id === playerId);
+        return this.maxNumTilesPerPlayer - Math.floor(this.tiles.length / this.players.length) - (this.tiles.length % this.players.length > playerIndex ? 1 : 0);
+      }
     }
   },
   computed: {
@@ -291,16 +363,6 @@ export default defineComponent({
     }
   },
   async created() {
-    await this.getTiles();
-    await this.getPlayers();
-
-    // // TODO: Set up web socket to track changes to the board and update the Grid's props
-    // this.socket = new WebSocket('ws://localhost:3000');
-    //
-    // this.socket.addEventListener('open', () => {
-    //   // Causes the server to print "Hello"
-    //   this.socket.send('Hello');
-    // });
   },
 });
 </script>

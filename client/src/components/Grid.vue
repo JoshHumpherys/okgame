@@ -7,10 +7,10 @@
             :key="j + '_' + i"
             @tile-clicked="onTileClicked(j, i)"
             :tile-color="findPlayerById(findTile(j, i)?.playerId)?.color"
-            :hover-color="this.players[this.playerTurn]?.id === myPlayerId ? myColor : null"
-            :is-playable="isPlayableTile(j, i)"
-            :is-selectable="isPlayableTile(j, i) && this.players[this.playerTurn]?.id === myPlayerId && !isPlayerRemoving"
-            :is-removable="findPlayerById(findTile(j, i)?.playerId)?.color === myColor && this.players[this.playerTurn]?.id === myPlayerId && isPlayerRemoving"></Tile>
+            :hover-color="(this.players[this.playerTurn]?.id === myPlayerId && !gameOver) ? myColor : null"
+            :is-playable="isPlayableTile(j, i) && !gameOver"
+            :is-selectable="isPlayableTile(j, i) && this.players[this.playerTurn]?.id === myPlayerId && !isPlayerRemoving && !gameOver"
+            :is-removable="findPlayerById(findTile(j, i)?.playerId)?.color === myColor && this.players[this.playerTurn]?.id === myPlayerId && isPlayerRemoving && !gameOver"></Tile>
       </tr>
     </table>
   </div>
@@ -32,8 +32,10 @@ export default defineComponent({
     myPlayerId: String,
     players: Array,
     tiles: Array,
+    numTilesAdded: Number,
     maxNumTilesPerPlayer: Number,
     numTilesRemainingPerPlayer: Array,
+    gameOver: Boolean,
   },
   data() {
     return {
@@ -45,17 +47,8 @@ export default defineComponent({
       return this.tiles.length === 0 ||
           !this.findTile(x, y) &&
           (!!this.findTile(x - 1, y) || !!this.findTile(x + 1, y) || !!this.findTile(x, y - 1) || !!this.findTile(x, y + 1)) &&
-          (!this.removedTile || this.removedTile.x !== x && this.removedTile.y !== y);
+          (!this.removedTile || this.removedTile.x !== x || this.removedTile.y !== y);
     },
-    // isSelectableTile(x, y) {
-    //   return this.tiles.length === 0 ||
-    //       !this.findTile(x, y) &&
-    //       (!!this.findTile(x - 1, y) || !!this.findTile(x + 1, y) || !!this.findTile(x, y - 1) || !!this.findTile(x, y + 1)) &&
-    //       (!this.removedTile || this.removedTile.x === x && this.removedTile.y === y);
-    // },
-    // isRemovableTile(x, y) {
-    //   return this.isPlayerRemoving
-    // },
     findTile(x, y) {
       return _.find(this.tiles, value => value.x === x && value.y === y);
     },
@@ -66,17 +59,19 @@ export default defineComponent({
       if (this.isPlayerRemoving) {
         this.removedTile = this.findTile(x, y);
 
-        console.log('TODO: Delete tile.');
-        // await fetch('http://localhost:3000/tiles', {
-        //   method: 'delete',
-        //   headers: {
-        //     'Content-Type': 'application/json'
-        //   },
-        //   body: JSON.stringify({
-        //     x,
-        //     y
-        //   })
-        // });
+        const functions = getFunctions();
+
+        try {
+          await httpsCallable(functions, 'removeTile')({ gameId: this.gameId, x, y });
+        } catch (error) {
+          const { code } = error;
+          if (code === 'functions/not-found') {
+            alert('Invalid game ID or tile.');
+          } else {
+            alert('An unknown error occurred while removing the tile.');
+          }
+          return;
+        }
 
         this.$emit('tile-clicked');
       } else if (this.isPlayableTile(x, y)) {
@@ -102,7 +97,7 @@ export default defineComponent({
   },
   computed: {
     playerTurn() {
-      return (this.tiles.length + (this.removedTile ? 1 : 0)) % this.players.length;
+      return this.numTilesAdded % this.players.length;
     },
     // colorsByPlayerId() {
     //   return new Map(this.players.map(x => ([x.id, x.color])));
