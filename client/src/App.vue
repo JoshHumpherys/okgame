@@ -1,55 +1,70 @@
 <template>
-  <div v-if="gameStatus === GameStatus.NONE">
-    <el-button type="primary" @click="() => gameStatus = GameStatus.CREATING_GAME">Create game</el-button>
-    <el-button type="primary" @click="() => gameStatus = GameStatus.JOINING_GAME">Join game</el-button>
-  </div>
-  <div v-else-if="gameStatus === GameStatus.CREATING_GAME">
-    <el-form ref="createGameFormRef" :model="createGameForm" :rules="createGameFormRules" label-width="120px">
-      <el-form-item label="Your name" prop="playerName">
-        <el-input v-model="createGameForm.playerName"></el-input>
-      </el-form-item>
-      <el-form-item label="Players" prop="maxNumPlayers">
-        <el-input-number v-model="createGameForm.maxNumPlayers" :min="2" :max="4" />
-      </el-form-item>
-      <el-form-item label="Invite only" prop="inviteOnly">
-        <el-switch v-model="createGameForm.inviteOnly"></el-switch>
-      </el-form-item>
-      <el-form-item>
-        <el-button type="primary" @click="createGame">Create game</el-button>
-        <el-button @click="() => gameStatus = GameStatus.NONE">Cancel</el-button>
-      </el-form-item>
-    </el-form>
-  </div>
-  <div v-else-if="gameStatus === GameStatus.JOINING_GAME">
-    <el-form ref="joinGameFormRef" :model="joinGameForm" :rules="joinGameFormRules" label-width="120px">
-      <el-form-item label="Your name" prop="playerName">
-        <el-input v-model="joinGameForm.playerName"></el-input>
-      </el-form-item>
-      <el-form-item label="Game ID" prop="gameId">
-        <el-input v-model="joinGameForm.gameId"></el-input>
-      </el-form-item>
-      <el-form-item>
-        <el-button type="primary" @click="joinGame">Join game</el-button>
-        <el-button @click="() => gameStatus = GameStatus.NONE">Cancel</el-button>
-      </el-form-item>
-    </el-form>
-  </div>
-  <div v-else-if="gameStatus === GameStatus.WAITING_FOR_GAME_TO_START">
-    <p>Game ID: {{ activeGameId }}</p>
-    <p>Players:</p>
-    <p v-for="player in players" :key="player.id">{{ player.name }}</p>
-    <el-button v-if="players[0].id === myPlayerId" type="primary" @click="startGame">Start game</el-button>
-    <p v-else>Waiting for {{ players[0].name }} to start the game...</p>
-  </div>
-  <div v-else-if="activeGameId !== null" class="container">
-    <div class="player-stats-column">
-      <PlayerStats v-for="player in sortedPlayers.slice(0, 2)" :key="player.id" :id="player.id" :name="player.name" :color="player.color" :num-tiles-remaining="getNumTilesRemaining(player.id)"></PlayerStats>
-    </div>
-    <Grid :game-id="activeGameId" :my-player-id="myPlayerId" :players="players" :tiles="tiles" :num-tiles-remaining-per-player="numTilesRemainingPerPlayer" :max-num-tiles-per-player="maxNumTilesPerPlayer" @tile-clicked="getTiles"/>
-    <div class="player-stats-column">
-      <PlayerStats v-for="player in sortedPlayers.slice(2, 4)" :key="player.id" :id="player.id" :name="player.name" :color="player.color" :num-tiles-remaining="getNumTilesRemaining(player.id)"></PlayerStats>
-    </div>
-  </div>
+  <el-container>
+    <el-main v-if="gameStatus === GameStatus.NONE">
+      <el-space spacer="|">
+        <el-button type="primary" @click="() => gameStatus = GameStatus.CREATING_GAME">Create game</el-button>
+        <el-button type="primary" @click="() => gameStatus = GameStatus.JOINING_GAME">Join game</el-button>
+      </el-space>
+    </el-main>
+    <el-main v-else-if="gameStatus === GameStatus.CREATING_GAME">
+      <el-row justify="center">
+        <el-col :xs="24" :sm="20" :md="16" :lg="12" :xl="8">
+          <el-form ref="createGameFormRef" :model="createGameForm" :rules="createGameFormRules" label-width="120px">
+            <el-form-item label="Your name" prop="playerName">
+              <el-input v-model="createGameForm.playerName"></el-input>
+            </el-form-item>
+            <el-form-item label="Players" prop="maxNumPlayers">
+              <el-input-number v-model="createGameForm.maxNumPlayers" :min="2" :max="4" />
+            </el-form-item>
+            <el-form-item label="Invite only" prop="inviteOnly">
+              <el-switch v-model="createGameForm.inviteOnly"></el-switch>
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" @click="createGame">Create game</el-button>
+              <el-button @click="() => gameStatus = GameStatus.NONE">Cancel</el-button>
+            </el-form-item>
+          </el-form>
+        </el-col>
+      </el-row>
+    </el-main>
+    <el-main v-else-if="gameStatus === GameStatus.JOINING_GAME">
+      <el-row justify="center">
+        <el-col :xs="24" :sm="20" :md="16" :lg="12" :xl="8">
+          <el-form ref="joinGameFormRef" :model="joinGameForm" :rules="joinGameFormRules" label-width="120px">
+            <el-form-item label="Your name" prop="playerName">
+              <el-input v-model="joinGameForm.playerName"></el-input>
+            </el-form-item>
+            <el-form-item label="Game ID" prop="gameId">
+              <el-input v-model="joinGameForm.gameId"></el-input>
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" @click="joinGame">Join game</el-button>
+              <el-button @click="() => gameStatus = GameStatus.NONE">Cancel</el-button>
+            </el-form-item>
+          </el-form>
+        </el-col>
+      </el-row>
+    </el-main>
+    <el-main v-else-if="gameStatus === GameStatus.WAITING_FOR_GAME_TO_START">
+      <p>
+        Game ID: {{ activeGameId }}
+        <el-button :icon="recentlyCopiedToClipboard ? Check : CopyDocument" circle @click="copyActiveGameIdToClipboard" @blur="recentlyCopiedToClipboard = false"></el-button>
+      </p>
+      <p>Players:</p>
+      <p v-for="player in players" :key="player.id">{{ player.name }}</p>
+      <el-button v-if="players.length > 0 && players[0].id === myPlayerId" type="primary" :disabled="players.length < 2" @click="startGame">Start game</el-button>
+      <p v-else-if="players.length > 0">Waiting for {{ players[0].name }} to start the game...</p>
+    </el-main>
+    <el-main v-else-if="activeGameId !== null" class="container">
+      <div class="player-stats-column">
+        <PlayerStats v-for="player in sortedPlayers.slice(0, 2)" :key="player.id" :id="player.id" :name="player.name" :color="player.color" :num-tiles-remaining="getNumTilesRemaining(player.id)"></PlayerStats>
+      </div>
+      <Grid :game-id="activeGameId" :my-player-id="myPlayerId" :players="players" :tiles="tiles" :num-tiles-remaining-per-player="numTilesRemainingPerPlayer" :max-num-tiles-per-player="maxNumTilesPerPlayer" @tile-clicked="getTiles"/>
+      <div class="player-stats-column">
+        <PlayerStats v-for="player in sortedPlayers.slice(2, 4)" :key="player.id" :id="player.id" :name="player.name" :color="player.color" :num-tiles-remaining="getNumTilesRemaining(player.id)"></PlayerStats>
+      </div>
+    </el-main>
+  </el-container>
 </template>
 
 <script setup>
@@ -65,6 +80,7 @@ import { doc, getFirestore, onSnapshot } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import _ from 'lodash';
 import { ElMessage } from 'element-plus'
+import { Check, CopyDocument } from '@element-plus/icons-vue';
 
 const GameStatus = {
   NONE: 0,
@@ -110,6 +126,7 @@ export default defineComponent({
           trigger: 'blur',
         },
       }),
+      recentlyCopiedToClipboard: false,
       gameStatus: GameStatus.NONE,
       activeGameId: null,
       playerName: null,
@@ -228,6 +245,11 @@ export default defineComponent({
           this.gameStatus = GameStatus.IN_PROGRESS;
         }
       });
+    },
+    copyActiveGameIdToClipboard() {
+      navigator.clipboard.writeText(this.activeGameId)
+        .then(() => this.recentlyCopiedToClipboard = true)
+        .catch(e => console.error(e));
     },
     promptForName() {
       this.playerName = prompt('What is your name?');

@@ -53,10 +53,19 @@ export const joinGame = https.onCall((data, context) => {
     if (!gameSnapshot.exists || !game) {
       throw new https.HttpsError('not-found', 'Invalid game ID.');
     }
+    if (game.started) {
+      throw new https.HttpsError('failed-precondition', 'The game is already started.');
+    }
+    if (game.players.length === game.maxNumPlayers) {
+      throw new https.HttpsError('failed-precondition', 'The game is already full.');
+    }
 
     const newPlayer: Player = { id: playerId, name: playerName, color: game.players.length };
 
-    await gameRef.update({ players: firestore.FieldValue.arrayUnion(newPlayer) });
+    await gameRef.update({
+      started: game.started || game.players.length + 1 === game.maxNumPlayers,
+      players: firestore.FieldValue.arrayUnion(newPlayer),
+    });
 
     return { gameId };
   }
@@ -70,6 +79,7 @@ export const startGame = https.onCall((data, context) => {
   if (!auth) {
     throw new https.HttpsError('unauthenticated', 'User is not authenticated.');
   }
+  const { uid: playerId } = auth.token;
   logger.info(`Starting game with game ID ${gameId}.`, { structuredData: true });
 
   async function impl() {
@@ -78,6 +88,12 @@ export const startGame = https.onCall((data, context) => {
     const game = gameSnapshot.data();
     if (!gameSnapshot.exists || !game) {
       throw new https.HttpsError('not-found', 'Invalid game ID.');
+    }
+    if (game.players.length === 0 || game.players[0].id !== playerId) {
+      throw new https.HttpsError('unauthenticated', 'User is not the host of the game.');
+    }
+    if (game.players.length < 2) {
+      throw new https.HttpsError('failed-precondition', 'There must be at least two players to start the game.');
     }
 
     await gameRef.update({ started: true });
